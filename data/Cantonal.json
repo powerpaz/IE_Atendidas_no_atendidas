@@ -1,3 +1,0 @@
-{"type":"FeatureCollection", "features": [
-{"type":"Feature","geometry":{"type":"LineString","coordinates":[[-80.870837,-2.269872],[-80.870836,-2.269872]]},"properties":{"DPA_CANTON":"2402","DPA_DESCAN":"LA LIBERTAD","DPA_PROVIN":"24","DPA_DESPRO":"SANTA ELENA","fcode":"HA003","DPA_ANIO":"2025"}}
-]}
