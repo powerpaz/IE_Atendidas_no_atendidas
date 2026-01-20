@@ -70,7 +70,7 @@ const map = L.map("map", {
   layers: [osm]
 });
 
-// Panes para control de superposición
+// Panes (Aseguran el orden de visualización)
 map.createPane("paneProvincias");
 map.getPane("paneProvincias").style.zIndex = 410;
 
@@ -88,9 +88,6 @@ legend.onAdd = () => {
     <div style="font-weight:700; margin-bottom:6px;">IE Priorizacion</div>
     <div class="row"><span class="dot green"></span><span>SI (Mantenimiento C_I)</span></div>
     <div class="row"><span class="dot red"></span><span>NO (Mantenimiento C_I)</span></div>
-    <div style="color: var(--muted); margin-top:8px;">
-      Capas administrativas cargadas bajo demanda.
-    </div>
   `;
   return div;
 };
@@ -122,7 +119,7 @@ function setBaseLayer(name) {
 if (ui.baseOSM) ui.baseOSM.addEventListener("change", () => setBaseLayer("osm"));
 if (ui.baseSAT) ui.baseSAT.addEventListener("change", () => setBaseLayer("sat"));
 
-// ===== Layers Logic =====
+// ===== Layers =====
 const layers = {
   provincias: null,
   cantonal: null,
@@ -142,7 +139,8 @@ function bindToggle(checkboxEl, layerKey) {
       return;
     }
     if (checkboxEl.checked) {
-      map.addLayer(lyr);
+      lyr.addTo(map);
+      if (typeof lyr.bringToFront === "function") lyr.bringToFront();
     } else {
       map.removeLayer(lyr);
     }
@@ -156,7 +154,7 @@ bindToggle(ui.lyrIE, "ie");
 
 async function loadDistritosLazy() {
   if (layers.distritos) {
-    if (ui.lyrDistritos?.checked) map.addLayer(layers.distritos);
+    if (ui.lyrDistritos?.checked) layers.distritos.addTo(map);
     return;
   }
   try {
@@ -164,112 +162,83 @@ async function loadDistritosLazy() {
     const data = await loadGeoJSON("data/Distritos_simplified.geojson");
     layers.distritos = L.geoJSON(data, {
       pane: "paneDistritos",
-      style: () => ({
-        weight: 1,
-        color: "#fbbf24",
-        fillColor: "#fbbf24",
-        fillOpacity: 0.1
-      }),
-      onEachFeature: (feature, layer) => {
-        layer.bindPopup(popupFromProps(feature.properties, Object.keys(feature.properties).slice(0, 5)));
-      }
+      style: () => ({ weight: 1, color: "#fbbf24", fillOpacity: 0.1 }),
+      onEachFeature: (f, l) => l.bindPopup(popupFromProps(f.properties, Object.keys(f.properties).slice(0, 5)))
     });
-    if (ui.lyrDistritos?.checked) map.addLayer(layers.distritos);
+    if (ui.lyrDistritos?.checked) layers.distritos.addTo(map);
     setStatus("Listo.");
-  } catch (e) {
-    setStatus("Error Distritos.");
-  }
+  } catch (e) { setStatus("Error Distritos."); }
 }
 
+// CAPA CANTONAL - GROSOR AUMENTADO Y VISIBLE
 async function loadCantonalLazy() {
   if (layers.cantonal) {
-    if (ui.lyrCantonal?.checked) map.addLayer(layers.cantonal);
+    if (ui.lyrCantonal?.checked) {
+      layers.cantonal.addTo(map);
+      layers.cantonal.bringToFront();
+    }
     return;
   }
+
   try {
     setStatus("Cargando Cantonal...");
     const data = await loadGeoJSON("data/Cantonal.geojson");
     layers.cantonal = L.geoJSON(data, {
       pane: "paneCantonal",
       style: () => ({
-        weight: 2,           // Aumentado para visibilidad
-        color: "#ff4444",    // Color rojo para diferenciarlo de provincias
-        dashArray: "3",      // Línea punteada para estilo técnico
-        fillColor: "#ff4444",
-        fillOpacity: 0.05    // Opacidad mínima para permitir clics
+        weight: 4.0,           // GROSOR MUY ALTO
+        color: "#00FF00",      // VERDE NEÓN PARA CONTRASTE
+        opacity: 1,            // TOTALMENTE OPACA LA LÍNEA
+        fillColor: "#00FF00",
+        fillOpacity: 0.1,      // LIGERO RELLENO PARA CLIC
+        lineJoin: "round"
       }),
       onEachFeature: (feature, layer) => {
         const props = feature.properties || {};
         layer.bindPopup(popupFromProps(props, Object.keys(props).slice(0, 10)));
       }
     });
-    if (ui.lyrCantonal?.checked) map.addLayer(layers.cantonal);
+
+    setLayerAvailability(ui.lyrCantonal, true);
+    if (ui.lyrCantonal?.checked) {
+      layers.cantonal.addTo(map);
+      layers.cantonal.bringToFront();
+    }
     setStatus("Listo.");
   } catch (e) {
-    console.error("[Cantonal] Error:", e);
+    console.error(e);
     setStatus("Error Cantonal.");
   }
 }
 
-// ===== Initial Load =====
 (async () => {
   try {
-    setStatus("Cargando Provincias...");
-    layers.provincias = await tryLoadLayer(
-      "Provincias",
-      "data/Provincias_simplified.geojson",
-      (provData) => L.geoJSON(provData, {
+    setStatus("Cargando Iniciales...");
+    layers.provincias = await tryLoadLayer("Provincias", "data/Provincias_simplified.geojson", (data) =>
+      L.geoJSON(data, {
         pane: "paneProvincias",
-        style: () => ({
-          weight: 1.5,
-          color: "#000000",
-          fillColor: "#1d4ed8",
-          fillOpacity: 0.05
-        }),
-        onEachFeature: (feature, layer) => {
-          layer.bindPopup(popupFromProps(feature.properties, ["DPA_DESPRO", "NAME_1"]));
-        }
+        style: () => ({ weight: 1.5, color: "#000000", fillOpacity: 0.05 })
       })
     );
 
-    if (layers.provincias && ui.lyrProvincias?.checked) map.addLayer(layers.provincias);
-
-    setStatus("Cargando IE Priorizacion...");
-    layers.ie = await tryLoadLayer(
-      "IE Priorizacion",
-      "data/IE_Priorizacion_light.geojson",
-      (ieData) => L.geoJSON(ieData, {
-        pointToLayer: (feature, latlng) => {
-          const yn = normYesNo(feature.properties["Mantenimiento C_I"]);
-          return L.circleMarker(latlng, {
-            radius: 6,
-            color: "#ffffff",
-            weight: 1,
-            fillColor: yn === "SI" ? "#22c55e" : "#ef4444",
-            fillOpacity: 0.9
-          });
+    layers.ie = await tryLoadLayer("IE", "data/IE_Priorizacion_light.geojson", (data) =>
+      L.geoJSON(data, {
+        pointToLayer: (f, latlng) => {
+          const yn = normYesNo(f.properties["Mantenimiento C_I"]);
+          return L.circleMarker(latlng, { radius: 6, fillColor: yn === "SI" ? "#22c55e" : "#ef4444", fillOpacity: 0.9, color: "#fff", weight: 1 });
         },
-        onEachFeature: (feature, layer) => {
-          const p = feature.properties;
-          layer.bindPopup(popupFromProps({
-            "AMIE": p.AMIE,
-            "Institución": p.NOM_INSTITUCION_EDUCATIVA,
-            "Mantenimiento": normYesNo(p["Mantenimiento C_I"])
-          }, ["AMIE", "Institución", "Mantenimiento"]));
-        }
+        onEachFeature: (f, l) => l.bindPopup(popupFromProps(f.properties, ["AMIE", "NOM_INSTITUCION_EDUCATIVA"]))
       })
     );
 
-    if (layers.ie && ui.lyrIE?.checked) map.addLayer(layers.ie);
-    
+    if (layers.provincias && ui.lyrProvincias?.checked) layers.provincias.addTo(map);
+    if (layers.ie && ui.lyrIE?.checked) layers.ie.addTo(map);
+
     setLayerAvailability(ui.lyrProvincias, !!layers.provincias);
     setLayerAvailability(ui.lyrIE, !!layers.ie);
     setLayerAvailability(ui.lyrCantonal, true);
     setLayerAvailability(ui.lyrDistritos, true);
 
     setStatus("Listo.");
-  } catch (e) {
-    console.error(e);
-    setStatus("Error en carga inicial.");
-  }
+  } catch (e) { setStatus("Error carga."); }
 })();
