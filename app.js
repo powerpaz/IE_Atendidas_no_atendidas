@@ -52,7 +52,7 @@ function setStatus(msg) {
   if ($status) $status.textContent = msg;
 }
 
-// ===== Mapas Base =====
+// ===== Base maps =====
 const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19,
   attribution: "&copy; OpenStreetMap"
@@ -63,14 +63,14 @@ const esriSat = L.tileLayer(
   { maxZoom: 19, attribution: "Tiles &copy; Esri" }
 );
 
-// ===== Inicialización del Mapa =====
+// ===== Map =====
 const map = L.map("map", {
   center: [-1.5, -78.5],
   zoom: 7,
   layers: [osm]
 });
 
-// Panes para control estricto de capas
+// Panes con alta prioridad para Cantonal
 map.createPane("paneProvincias");
 map.getPane("paneProvincias").style.zIndex = 410;
 
@@ -78,22 +78,22 @@ map.createPane("paneDistritos");
 map.getPane("paneDistritos").style.zIndex = 415;
 
 map.createPane("paneCantonal");
-map.getPane("paneCantonal").style.zIndex = 420;
+map.getPane("paneCantonal").style.zIndex = 450; // Z-Index muy alto para que nada lo cubra
 
 // Leyenda
 const legend = L.control({ position: "bottomleft" });
 legend.onAdd = () => {
   const div = L.DomUtil.create("div", "legend");
   div.innerHTML = `
-    <div style="font-weight:700; margin-bottom:6px;">Capas Administrativas</div>
-    <div class="row"><span style="display:inline-block; width:12px; height:12px; border:2px solid #00FF00; background:rgba(0,255,0,0.2);"></span> <span>Cantonal (Línea Gruesa)</span></div>
-    <div class="row"><span class="dot green"></span><span>IE Priorizada</span></div>
+    <div style="font-weight:700; margin-bottom:6px;">IE Priorizacion</div>
+    <div class="row"><span class="dot green"></span><span>SI (Mantenimiento C_I)</span></div>
+    <div class="row"><span class="dot red"></span><span>NO (Mantenimiento C_I)</span></div>
   `;
   return div;
 };
 legend.addTo(map);
 
-// ===== Controles UI =====
+// ===== Sidebar controls =====
 const ui = {
   baseOSM: document.getElementById("base_osm"),
   baseSAT: document.getElementById("base_sat"),
@@ -119,7 +119,7 @@ function setBaseLayer(name) {
 if (ui.baseOSM) ui.baseOSM.addEventListener("change", () => setBaseLayer("osm"));
 if (ui.baseSAT) ui.baseSAT.addEventListener("change", () => setBaseLayer("sat"));
 
-// ===== Lógica de Capas =====
+// ===== Layers =====
 const layers = {
   provincias: null,
   cantonal: null,
@@ -127,22 +127,20 @@ const layers = {
   ie: null
 };
 
+// Modificación importante en el toggle para asegurar la carga y visualización inmediata
 function bindToggle(checkboxEl, layerKey) {
   if (!checkboxEl) return;
-  checkboxEl.addEventListener("change", () => {
-    const lyr = layers[layerKey];
-    if (!lyr) {
-      if (checkboxEl.checked) {
-        if (layerKey === "distritos") loadDistritosLazy();
-        if (layerKey === "cantonal") loadCantonalLazy();
-      }
-      return;
-    }
+  checkboxEl.addEventListener("change", async () => {
     if (checkboxEl.checked) {
-      lyr.addTo(map);
-      if (lyr.bringToFront) lyr.bringToFront();
+      if (!layers[layerKey]) {
+        if (layerKey === "distritos") await loadDistritosLazy();
+        if (layerKey === "cantonal") await loadCantonalLazy();
+      } else {
+        layers[layerKey].addTo(map);
+        if (layers[layerKey].bringToFront) layers[layerKey].bringToFront();
+      }
     } else {
-      map.removeLayer(lyr);
+      if (layers[layerKey]) map.removeLayer(layers[layerKey]);
     }
   });
 }
@@ -153,25 +151,17 @@ bindToggle(ui.lyrDistritos, "distritos");
 bindToggle(ui.lyrIE, "ie");
 
 async function loadCantonalLazy() {
-  if (layers.cantonal) {
-    if (ui.lyrCantonal?.checked) {
-      layers.cantonal.addTo(map);
-      layers.cantonal.bringToFront();
-    }
-    return;
-  }
-
   try {
-    setStatus("Cargando Capa Cantonal...");
+    setStatus("Cargando Cantonal...");
     const data = await loadGeoJSON("data/Cantonal.geojson");
     layers.cantonal = L.geoJSON(data, {
       pane: "paneCantonal",
       style: () => ({
-        weight: 5.0,           // Grosor máximo para visibilidad extrema
-        color: "#00FF00",      // Verde neón
-        opacity: 1,            // Opacidad de línea total
-        fillColor: "#00FF00",
-        fillOpacity: 0.15,     // Relleno ligero para facilitar clics
+        weight: 6.0,           // Grosor extremo para asegurar visibilidad
+        color: "#ff00ff",      // Magenta neón (contraste máximo sobre cualquier mapa)
+        opacity: 1,
+        fillColor: "#ff00ff",
+        fillOpacity: 0.1,
         lineJoin: "round"
       }),
       onEachFeature: (feature, layer) => {
@@ -180,64 +170,69 @@ async function loadCantonalLazy() {
     });
 
     setLayerAvailability(ui.lyrCantonal, true);
-    if (ui.lyrCantonal?.checked) {
-      layers.cantonal.addTo(map);
-      layers.cantonal.bringToFront();
-    }
+    layers.cantonal.addTo(map);
+    layers.cantonal.bringToFront();
     setStatus("Listo.");
   } catch (e) {
-    console.error(e);
+    console.error("[Cantonal] Error fatal:", e);
     setStatus("Error al cargar Cantonal.");
   }
 }
 
 async function loadDistritosLazy() {
-  if (layers.distritos) {
-    if (ui.lyrDistritos?.checked) layers.distritos.addTo(map);
-    return;
-  }
   try {
     setStatus("Cargando Distritos...");
     const data = await loadGeoJSON("data/Distritos_simplified.geojson");
     layers.distritos = L.geoJSON(data, {
       pane: "paneDistritos",
-      style: () => ({ weight: 2, color: "#fbbf24", fillOpacity: 0.1 }),
-      onEachFeature: (f, l) => l.bindPopup(popupFromProps(f.properties, Object.keys(f.properties).slice(0, 5)))
+      style: () => ({
+        weight: 2,
+        color: "#fbbf24",
+        fillOpacity: 0.1
+      }),
+      onEachFeature: (f, l) => l.bindPopup(popupFromProps(f.properties, Object.keys(f.properties).slice(0, 8)))
     });
-    if (ui.lyrDistritos?.checked) layers.distritos.addTo(map);
+    setLayerAvailability(ui.lyrDistritos, true);
+    layers.distritos.addTo(map);
     setStatus("Listo.");
   } catch (e) { setStatus("Error Distritos."); }
 }
 
-// Carga inicial de capas fijas
 (async () => {
   try {
-    setStatus("Iniciando...");
+    setStatus("Cargando Capas Iniciales...");
 
-    layers.provincias = await tryLoadLayer("Provincias", "data/Provincias_simplified.geojson", (data) =>
-      L.geoJSON(data, {
+    layers.provincias = await tryLoadLayer(
+      "Provincias",
+      "data/Provincias_simplified.geojson",
+      (provData) => L.geoJSON(provData, {
         pane: "paneProvincias",
-        style: () => ({ weight: 1.5, color: "#000000", fillOpacity: 0.05 })
+        style: () => ({
+          weight: 1.5,
+          color: "#000000",
+          fillColor: "#1d4ed8",
+          fillOpacity: 0.05
+        })
       })
     );
-
-    layers.ie = await tryLoadLayer("IE", "data/IE_Priorizacion_light.geojson", (data) =>
-      L.geoJSON(data, {
-        pointToLayer: (f, latlng) => {
-          const yn = normYesNo(f.properties["Mantenimiento C_I"]);
-          return L.circleMarker(latlng, { 
-            radius: 6, 
-            fillColor: yn === "SI" ? "#22c55e" : "#ef4444", 
-            fillOpacity: 0.9, 
-            color: "#fff", 
-            weight: 1 
-          });
-        },
-        onEachFeature: (f, l) => l.bindPopup(popupFromProps(f.properties, ["AMIE", "NOM_INSTITUCION_EDUCATIVA"]))
-      })
-    );
-
     if (layers.provincias && ui.lyrProvincias?.checked) layers.provincias.addTo(map);
+
+    layers.ie = await tryLoadLayer(
+      "IE Priorizacion",
+      "data/IE_Priorizacion_light.geojson",
+      (ieData) => L.geoJSON(ieData, {
+        pointToLayer: (feature, latlng) => {
+          const yn = normYesNo(feature.properties["Mantenimiento C_I"]);
+          return L.circleMarker(latlng, {
+            radius: 6,
+            fillColor: yn === "SI" ? "#22c55e" : "#ef4444",
+            fillOpacity: 0.9,
+            color: "#fff",
+            weight: 1
+          });
+        }
+      })
+    );
     if (layers.ie && ui.lyrIE?.checked) layers.ie.addTo(map);
 
     setLayerAvailability(ui.lyrProvincias, !!layers.provincias);
@@ -246,8 +241,8 @@ async function loadDistritosLazy() {
     setLayerAvailability(ui.lyrDistritos, true);
 
     setStatus("Listo.");
-  } catch (e) { 
+  } catch (e) {
     console.error(e);
-    setStatus("Error en carga inicial."); 
+    setStatus("Error en el inicio.");
   }
 })();
