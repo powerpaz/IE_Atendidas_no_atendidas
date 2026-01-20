@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Instituciones Atendidas y no Atendidas</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-title">Instituciones Atendidas y no Atendidas - Banco Mundial</div>
+      <div class="brand-subtitle">IE Priorizacion · Provincias</div>
+    </div>
+    <div class="status" id="status">Cargando capas…</div>
+  </header>
+
+  <div class="main">
+    <aside class="sidebar" id="sidebar">
+      <div class="panel-title">Capas</div>
+
+      <div class="panel-section">
+        <div class="section-title">Base</div>
+        <label class="opt"><input type="radio" name="basemap" id="base_osm" checked> BaseMap</label>
+        <label class="opt"><input type="radio" name="basemap" id="base_sat"> Satellite</label>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">Poligonales</div>
+        <label class="opt"><input type="checkbox" id="lyr_provincias" checked> Provincias</label>
+        <label class="opt"><input type="checkbox" id="lyr_cantonal"> Cantonal</label>
+        <label class="opt"><input type="checkbox" id="lyr_distritos"> Distritos</label>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">Puntos</div>
+        <label class="opt"><input type="checkbox" id="lyr_ie" checked> IE Priorizacion</label>
+      </div>
+
+      <div class="panel-foot">
+        Ultralight: Cantonal apagada por defecto para mantener velocidad.
+      </div>
+    </aside>
+
+    <div id="map"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/topojson-client@3/dist/topojson-client.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
