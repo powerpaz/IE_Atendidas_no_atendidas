@@ -195,7 +195,7 @@ async function loadDistritosLazy() {
       pane: "paneDistritos",
       style: () => ({
         weight: 2,
-        color: "#fbbf24",
+        color: "#42A5F5",
         fillOpacity: 0.1
       }),
       onEachFeature: (f, l) => l.bindPopup(popupFromProps(f.properties, Object.keys(f.properties).slice(0, 8)))
