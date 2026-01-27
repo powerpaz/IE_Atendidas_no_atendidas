@@ -1,1 +1,0 @@
-Coloca aquí solo si quieres cargar localmente los GeoJSON de puntos. Recomendado: usar URLs en config.js.
